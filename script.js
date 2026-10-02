@@ -89,7 +89,7 @@
     notes: [],
     cards: [],
     study: { panel: 'timer', sview: 'notes', noteSubject: 'all', cardSubject: 'all' },
-    settings: { haptics: true, confetti: true, liveFeed: true, sound: 'off', focusMins: 15 },
+    settings: { haptics: true, confetti: true, liveFeed: true, sound: 'off', focusMins: 15, ui: 'slap', iosTheme: 'light' },
     timer: { len: 15 * 60, remain: 15 * 60, endAt: null },
     stats: {
       tasksDone: 0, tasksDoneToday: 0, stepsDone: 0, focusSessions: 0,
@@ -171,6 +171,7 @@
     });
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', a.base);
+    applyUI();
   }
 
   function applyVibe(v) {
@@ -178,6 +179,64 @@
     document.documentElement.dataset.vibe = key;
     S.vibe = key;
     $$('#vibeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.vibe === key));
+  }
+
+  /**
+   * UI mode: "slap" (the house look), "prism" (vibrant graphic abstraction)
+   * or "ios" (Apple system skin).
+   * Drives html[data-ui] / html[data-ios]; style.css does the rest.
+   */
+  // iOS default tint (Apple system blue family). Used only when the user
+  // never picked a custom accent — their own accent wins as the tint.
+  const IOS_TINT = { base: '#007AFF', a2: '#34C759', a3: '#FF375F' };
+  const UI_MODES = ['slap', 'prism', 'ios'];
+
+  function applyUI() {
+    const mode = UI_MODES.includes(S.settings.ui) ? S.settings.ui : 'slap';
+    const theme = S.settings.iosTheme === 'dark' ? 'dark' : 'light';
+    const root = document.documentElement;
+
+    root.dataset.ui = mode;
+    if (mode === 'ios') {
+      root.dataset.ios = theme;
+      const custom = S.accent && S.accent !== 'violet' && ACCENTS[S.accent];
+      const t = custom ? ACCENTS[S.accent] : IOS_TINT;
+      root.style.setProperty('--acc', t.base);
+      root.style.setProperty('--acc-2', t.a2);
+      root.style.setProperty('--acc-3', t.a3);
+      root.style.setProperty('--acc-ink', '#0a0612');
+    } else {
+      root.removeAttribute('data-ios');
+      // Restore the house accent (iOS mode may have overridden it inline).
+      // Prism keeps the personal accent too — it only repaints the canvas.
+      const a = ACCENTS[S.accent] || ACCENTS.violet;
+      root.style.setProperty('--acc', a.base);
+      root.style.setProperty('--acc-2', a.a2);
+      root.style.setProperty('--acc-3', a.a3);
+      root.style.setProperty('--acc-ink', '#0a0612');
+    }
+
+    $$('#uiSeg button').forEach((b) => b.classList.toggle('on', b.dataset.uiMode === mode));
+    $$('#iosThemeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.ios === theme));
+    const themeSeg = $('#iosThemeSeg');
+    if (themeSeg) themeSeg.classList.toggle('ios-only', mode !== 'ios');
+
+    const hint = $('#uiHint');
+    if (hint) {
+      hint.textContent =
+        mode === 'ios'
+          ? theme === 'dark'
+            ? 'iOS dark — Apple system colours, flat surfaces.'
+            : 'iOS light — flat, quiet and system-standard.'
+          : mode === 'prism'
+            ? 'Prism — spectral glass, always in motion.'
+            : "SLAP's own look.";
+    }
+
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', mode === 'ios'
+      ? (theme === 'dark' ? '#000000' : '#F2F2F7')
+      : (ACCENTS[S.accent] ? ACCENTS[S.accent].base : '#08080f'));
   }
 
   function applyName(value) {
@@ -3513,6 +3572,30 @@ const earned = () => new Set(BADGES.filter((b) => b.test(S.stats)).map((b) => b.
       applyVibe(b.dataset.vibe);
       save();
       buzz(12);
+    });
+    $('#uiSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ui-mode]');
+      if (!b) return;
+      S.settings.ui = b.dataset.uiMode;
+      save();
+      applyUI();
+      buzz(12);
+      const words = {
+        slap: ['Back to the SLAP look', 'SLAP interface enabled'],
+        prism: ['Prism on ✦', 'Prism interface enabled'],
+        ios: ['iOS skin on ✨', 'iOS interface enabled']
+      }[b.dataset.uiMode] || ['Look changed', 'Interface changed'];
+      toast(words[0]);
+      announce(words[1]);
+    });
+    $('#iosThemeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ios]');
+      if (!b) return;
+      S.settings.iosTheme = b.dataset.ios;
+      save();
+      applyUI();
+      buzz(12);
+      toast(b.dataset.ios === 'dark' ? 'iOS dark 🌙' : 'iOS light ☀️');
     });
     $('#swHaptics').addEventListener('click', function () { toggleSwitch(this, 'haptics'); buzz(10); });
     $('#swConfetti').addEventListener('click', function () { toggleSwitch(this, 'confetti', () => burst(0.8)); });
